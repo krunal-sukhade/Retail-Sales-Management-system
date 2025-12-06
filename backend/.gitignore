@@ -1,0 +1,33 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Build / temp
+dist/
+build/
+tmp/
+temp/
+
+# CSV or large dataset files — do NOT upload heavy CSVs
+*.csv
+*.xlsx
+
+# Allow JSON dataset
+!data/salesData.json
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
