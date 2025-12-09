@@ -8,10 +8,9 @@ The system provides powerful filtering, searching, sorting, pagination, and KPI 
 ## 🚀 Live Project Links  
 
 
-- **Frontend (Vercel):** https://your-frontend-url.vercel.app
-- **Backend (Render):** https://your-backend-url.onrender.com
-- **GitHub Repository:** https://github.com/yourusername/truestate-sales-management
-
+- **Frontend (Vercel):** https://retail-sales-management-system-tau.vercel.app/
+- **Backend (Render):** https://retail-sales-management-system-ly1b.onrender.com
+- **GitHub Repository:** https://github.com/krunal-sukhade/Retail-Sales-Management-system
 ---
 
 ## 📚 Overview  
