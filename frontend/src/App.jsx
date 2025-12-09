@@ -113,27 +113,23 @@ function App() {
 
   return (
     <Layout>
-      <header className="app-header">
-        <h1>Sales Management System</h1>
+      <header className="app-header-wrapper">
+
+        {/* ROW 1: Title + Search + Sort */}
+        <div className="header-top-row">
+          <h1>Sales Management System</h1>
+
+          <div className="header-actions">
+            <SearchBar value={search} onChange={handleSearchChange} />
+            <SortDropdown sort={sort} onChange={handleSortChange} />
+          </div>
+        </div>
+
+        {/* ROW 2: Filters full width */}
+        <FiltersBar filters={filters} onChange={handleFiltersChange} />
+
       </header>
 
-      {/* Top bar: filters + search + sort */}
-      {/* <div className="top-bar">
-        <FiltersBar filters={filters} onChange={handleFiltersChange} />
-        <div className="top-bar-right">
-          <SearchBar value={search} onChange={handleSearchChange} />
-          <SortDropdown sort={sort} onChange={handleSortChange} />
-        </div>
-      </div> */}
-
-      <div className="top-controls">
-        <FiltersBar filters={filters} onChange={handleFiltersChange} />
-
-        <div className="right-controls">
-          <SearchBar value={search} onChange={handleSearchChange} />
-          <SortDropdown sort={sort} onChange={handleSortChange} />
-        </div>
-      </div>
 
 
       {/* KPI / summary cards */}

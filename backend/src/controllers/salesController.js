@@ -1,6 +1,6 @@
 const salesService = require("../services/salesService");
 
-exports.getSales = (req, res) => {
+exports.getSales = async (req, res) => {
   try {
     const {
       search,
@@ -36,7 +36,8 @@ exports.getSales = (req, res) => {
       limit: limit ? Number(limit) : 10
     };
 
-    const result = salesService.getSales(query);
+    // 🌟 Mongo service returns a Promise → await it
+    const result = await salesService.getSales(query);
 
     res.json(result);
   } catch (err) {

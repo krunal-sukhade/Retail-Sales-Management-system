@@ -1,224 +1,161 @@
-const path = require("path");
-const fs = require("fs");
-const { applyPagination } = require("../utils/pagination");
-const {
-  parseList,
-  normalizeString,
-  parseDateSafe
-} = require("../utils/queryParser");
+const Sale = require("../models/Sale");
+const { parseList } = require("../utils/queryParser");
 
-const dataPath = path.join(__dirname, "..", "data", "salesData.json");
-
-// Load dataset once at startup
-let salesData = [];
-
-try {
-  const raw = fs.readFileSync(dataPath, "utf-8");
-  salesData = JSON.parse(raw);
-  console.log(`Loaded ${salesData.length} sales records.`);
-} catch (err) {
-  console.error("Failed to load salesData.json:", err.message);
-  salesData = [];
-}
-
-function matchesSearch(record, searchTerm) {
-  if (!searchTerm) return true;
-  const s = normalizeString(searchTerm);
-  const name = normalizeString(record.customerName || "");
-  const phone = normalizeString(record.phoneNumber || "");
-  return name.includes(s) || phone.includes(s);
-}
-
-function matchesRegion(record, regionQuery) {
-  if (!regionQuery) return true;
-  const regions = parseList(regionQuery); // array of strings
-  if (!regions.length) return true;
-  const recordRegion = normalizeString(record.customerRegion || "");
-  return regions.some((r) => recordRegion === r);
-}
-
-function matchesGender(record, genderQuery) {
-  if (!genderQuery) return true;
-  const genders = parseList(genderQuery);
-  if (!genders.length) return true;
-  const g = normalizeString(record.gender || "");
-  return genders.some((x) => g === x);
-}
-
-function matchesAge(record, ageMin, ageMax) {
-  if (ageMin == null && ageMax == null) return true;
-  const age = Number(record.age);
-  if (Number.isNaN(age)) return false;
-
-  let min = ageMin;
-  let max = ageMax;
-
-  // Handle invalid numeric range: swap if min > max
-  if (min != null && max != null && min > max) {
-    const temp = min;
-    min = max;
-    max = temp;
-  }
-
-  if (min != null && age < min) return false;
-  if (max != null && age > max) return false;
-  return true;
-}
-
-function matchesProductCategory(record, categoryQuery) {
-  if (!categoryQuery) return true;
-  const categories = parseList(categoryQuery);
-  if (!categories.length) return true;
-  const cat = normalizeString(record.productCategory || "");
-  return categories.some((c) => cat.includes(c));
-}
-
-function getRecordTags(record) {
-  if (!record.tags) return [];
-  if (Array.isArray(record.tags)) {
-    return record.tags.map(normalizeString).filter(Boolean);
-  }
-  if (typeof record.tags === "string") {
-    return record.tags
-      .split(",")
-      .map(normalizeString)
-      .filter(Boolean);
-  }
-  return [];
-}
-
-// function matchesTags(record, tagsQuery) {
-//   if (!tagsQuery) return true;
-//   const queryTags = parseList(tagsQuery);
-//   if (!queryTags.length) return true;
-
-//   const recordTags = getRecordTags(record);
-//   if (!recordTags.length) return false;
-
-//   // ANY matching tag
-//   return queryTags.some((tag) => recordTags.includes(tag));
-// }
-
-function matchesTags(record, tagsQuery) {
-  if (!tagsQuery) return true;
-
-  const queryTags = parseList(tagsQuery).map(normalizeString);
-  if (!queryTags.length) return true;
-
-  const recordTags = getRecordTags(record); // already normalized
-  if (!recordTags.length) return false;
-
-  // Adaptive partial match
-  return queryTags.some((q) =>
-    recordTags.some((t) => t.includes(q))
-  );
-}
-
-
-function matchesPaymentMethod(record, payQuery) {
-  if (!payQuery) return true;
-  const methods = parseList(payQuery);
-  if (!methods.length) return true;
-  const m = normalizeString(record.paymentMethod || "");
-  return methods.some((x) => m === x);
-}
-
-function matchesDateRange(record, dateFrom, dateTo) {
-  if (!dateFrom && !dateTo) return true;
-
-  const d = parseDateSafe(record.date);
-  if (!d) return false;
-
-  const from = dateFrom ? parseDateSafe(dateFrom) : null;
-  const to = dateTo ? parseDateSafe(dateTo) : null;
-
-  if (from && d < from) return false;
-  if (to && d > to) return false;
-  return true;
-}
-
-function sortRecords(records, sortBy, sortOrder) {
-  const order = sortOrder === "asc" ? 1 : -1;
-
-  return records.sort((a, b) => {
-    if (sortBy === "date") {
-      const da = parseDateSafe(a.date);
-      const db = parseDateSafe(b.date);
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return (da - db) * order;
-    }
-
-    if (sortBy === "quantity") {
-      const qa = Number(a.quantity) || 0;
-      const qb = Number(b.quantity) || 0;
-      if (qa === qb) return 0;
-      return qa > qb ? order : -order;
-    }
-
-    if (sortBy === "customerName") {
-      const na = normalizeString(a.customerName || "");
-      const nb = normalizeString(b.customerName || "");
-      if (na === nb) return 0;
-      return na > nb ? order : -order;
-    }
-
-    // default: no extra sorting
-    return 0;
-  });
-}
-
-function getSales(query) {
-  const {
-    search,
-    region,
-    gender,
-    ageMin,
-    ageMax,
-    productCategory,
-    tags,
-    paymentMethod,
-    dateFrom,
-    dateTo,
-    sortBy,
-    sortOrder,
-    page,
-    limit
-  } = query;
-
-  // 1. Filter
-  let filtered = salesData.filter((record) => {
-    return (
-      matchesSearch(record, search) &&
-      matchesRegion(record, region) &&
-      matchesGender(record, gender) &&
-      matchesAge(record, ageMin, ageMax) &&
-      matchesProductCategory(record, productCategory) &&
-      matchesTags(record, tags) &&
-      matchesPaymentMethod(record, paymentMethod) &&
-      matchesDateRange(record, dateFrom, dateTo)
-    );
-  });
-
-  // 2. Sort
-  filtered = sortRecords(filtered, sortBy, sortOrder);
-
-  // 3. Pagination
-  const { items, totalItems, totalPages, currentPage, pageSize } =
-    applyPagination(filtered, page, limit);
-
+function normalizeRecord(r) {
   return {
-    data: items,
-    pagination: {
-      totalItems,
-      totalPages,
-      currentPage,
-      pageSize
-    }
+    transactionId: r["Transaction ID"],
+    date: r["Date"] instanceof Date ? r["Date"].toISOString().slice(0,10) : "",
+
+    customerId: r["Customer ID"] || "",
+    customerName: r["Customer Name"] || "",
+
+    phoneNumber:
+      typeof r["Phone Number"] === "object"
+        ? r["Phone Number"].$numberLong
+        : String(r["Phone Number"] || ""),
+
+    gender: r["Gender"] || "",
+    age: r["Age"] || "",
+
+    customerRegion: r["Customer Region"] || "",
+    productId: r["Product ID"] || "",
+    productName: r["Product Name"] || "",
+    productCategory: r["Product Category"] || "",
+    
+    quantity: r["Quantity"] || 0,
+    pricePerUnit: r["Price per Unit"] || 0,
+    discount: r["Discount Percentage"] || 0,
+    
+    totalAmount: r["Total Amount"] || 0,
+    finalAmount: r["Final Amount"] || 0,
+
+    paymentMethod: r["Payment Method"] || "",
+    tags:
+      typeof r["Tags"] === "string"
+        ? r["Tags"].split(",").map((t) => t.trim())
+        : [],
+
+    employeeName: r["Employee Name"] || "",
   };
 }
 
-module.exports = {
-  getSales
+exports.getSales = async (query) => {
+  let {
+    search = "",
+    region = "",
+    gender = "",
+    ageMin,
+    ageMax,
+    productCategory = "",
+    tags = "",
+    paymentMethod = "",
+    dateFrom = "",
+    dateTo = "",
+    sortBy = "date",
+    sortOrder = "desc",
+    page = 1,
+    limit = 10,
+  } = query;
+
+  const filter = {};
+
+  // 🔍 SEARCH
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { "Customer Name": searchRegex },
+      { "Phone Number": searchRegex }
+    ];
+  }
+
+  // 🌍 REGION
+  const regions = parseList(region).map(x => x.toLowerCase());
+  if (regions.length) {
+    filter["Customer Region"] = {
+      $in: regions.map(r => new RegExp("^" + r + "$", "i"))
+    };
+  }
+
+  // 👤 GENDER
+  const genders = parseList(gender).map(x => x.toLowerCase());
+  if (genders.length) {
+    filter["Gender"] = {
+      $in: genders.map(g => new RegExp("^" + g + "$", "i"))
+    };
+  }
+
+  // 🎂 AGE RANGE
+  if (ageMin || ageMax) {
+    filter["Age"] = {};
+    if (ageMin) filter["Age"].$gte = Number(ageMin);
+    if (ageMax) filter["Age"].$lte = Number(ageMax);
+  }
+
+  // 🛍 CATEGORY (partial)
+  const categories = parseList(productCategory).map(x => x.toLowerCase());
+  if (categories.length) {
+    filter["Product Category"] = {
+      $in: categories.map(c => new RegExp(c, "i"))
+    };
+  }
+
+  // 🏷 TAGS
+  const tagList = parseList(tags).map(t => t.toLowerCase());
+  if (tagList.length) {
+    filter["Tags"] = {
+      $in: tagList.map(t => new RegExp(t, "i"))
+    };
+  }
+
+  // 💳 PAYMENT METHOD
+  const methods = parseList(paymentMethod).map(x => x.toLowerCase());
+  if (methods.length) {
+    filter["Payment Method"] = {
+      $in: methods.map(m => new RegExp("^" + m + "$", "i"))
+    };
+  }
+
+  // 📅 DATE RANGE
+  if (dateFrom || dateTo) {
+    filter["Date"] = {};
+    if (dateFrom) filter["Date"].$gte = new Date(dateFrom);
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      filter["Date"].$lte = end;
+    }
+  }
+
+  // 🔽 Sorting
+  const sort = {};
+  const dir = sortOrder === "asc" ? 1 : -1;
+
+  if (sortBy === "customerName") {
+    sort["Customer Name"] = dir;
+  } else if (sortBy === "quantity") {
+    sort["Quantity"] = dir;
+  } else {
+    sort["Date"] = dir;
+  }
+
+  const pageNum = Math.max(parseInt(page) || 1, 1);
+  const pageSize = Math.max(parseInt(limit) || 10, 1);
+  const skip = (pageNum - 1) * pageSize;
+
+  const [totalItems, docs] = await Promise.all([
+    Sale.countDocuments(filter),
+    Sale.find(filter).sort(sort).skip(skip).limit(pageSize).lean(),
+  ]);
+
+  const data = docs.map(normalizeRecord);
+
+  return {
+    data,
+    pagination: {
+      totalItems,
+      totalPages: Math.max(Math.ceil(totalItems / pageSize), 1),
+      currentPage: pageNum,
+      pageSize,
+    },
+  };
 };

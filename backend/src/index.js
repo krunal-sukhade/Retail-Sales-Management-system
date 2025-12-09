@@ -3,6 +3,13 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 
+const mongoose = require("mongoose");
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch(err => console.error("Mongo Error:", err));
+
+
 const salesRoutes = require("./routes/salesRoutes");
 
 const app = express();
